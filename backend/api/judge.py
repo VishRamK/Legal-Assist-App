@@ -3,6 +3,15 @@ import torch
 import librosa
 import numpy as np
 import speech_recognition as sr
+import openai
+import os
+from dotenv import load_dotenv
+import assemblyai as aai
+
+load_dotenv()
+aai.settings.api_key = os.getenv("ASSEMBLY_AI_KEY")
+transcriber = aai.Transcriber()
+
 #from ..services.llm_service import LLMService
 
 class Judge:
@@ -58,15 +67,7 @@ class Judge:
 
     def audio_to_text(self, filename: str) -> str:
         """Convert audio file to text using SpeechRecognition."""
-        recognizer = sr.Recognizer()
-        with sr.AudioFile(filename) as source:
-            audio_data = recognizer.record(source)
-            try:
-                return recognizer.recognize_google(audio_data)
-            except sr.UnknownValueError:
-                return "Unintelligible"
-            except sr.RequestError:
-                return ""
+        return transcriber.transcribe(filename).text
 
 
     def analyze_audio_tone(self):
@@ -111,22 +112,30 @@ class Judge:
 
     def analyze_legal_strength(self):
         """Use LegalBERT to evaluate the legal strength of a response."""
+        print(self.current_response)
         if self.current_response == "Unintelligible":
             return 0
-        
+
         tokenizer = BertTokenizer.from_pretrained("nlpaueb/legal-bert-base-uncased")
         model = BertForSequenceClassification.from_pretrained("nlpaueb/legal-bert-base-uncased")
-        
+
+        # Tokenize the response
         inputs = tokenizer(self.current_response, return_tensors="pt")
         outputs = model(**inputs)
         
-        # Assuming the model outputs a score (this is an oversimplification for demo purposes)
-        legal_strength_score = outputs.logits[0].item() * 100  # Map to 0-100 scale
+        # Get logits (output before softmax)
+        logits = outputs.logits[0]
         
+        # Option 1: Apply softmax to convert logits to probabilities
+        probabilities = torch.softmax(logits, dim=-1)
+        
+        # Use the probability of the predicted class (highest probability)
+        legal_strength_score = torch.max(probabilities).item() * 100  # Scale to 0-100
+
         return legal_strength_score
 
 
-    def get_sentence_embedding(sentence, model, tokenizer):
+    def get_sentence_embedding(self, sentence, model, tokenizer):
         """Get the embedding of a sentence using BERT."""
         inputs = tokenizer(sentence, return_tensors='pt', padding=True, truncation=True, max_length=512)
         with torch.no_grad():
