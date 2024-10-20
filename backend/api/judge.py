@@ -1,9 +1,8 @@
-from transformers import BertTokenizer, BertForSequenceClassification, BertModel
+from transformers import BertTokenizer, BertForSequenceClassification, Trainer, TrainingArguments, BertModel
 import torch
 import librosa
 import numpy as np
-import speech_recognition as sr
-import openai
+from datasets import load_dataset
 import os
 from dotenv import load_dotenv
 import assemblyai as aai
@@ -12,7 +11,10 @@ load_dotenv()
 aai.settings.api_key = os.getenv("ASSEMBLY_AI_KEY")
 transcriber = aai.Transcriber()
 
-#from ..services.llm_service import LLMService
+# Path to your fine-tuned model
+finetuned_model_path = './finetuned_legal_bert'
+
+model = BertForSequenceClassification.from_pretrained("nlpaueb/legal-bert-base-uncased")
 
 class Judge:
     def __init__(self):
@@ -27,12 +29,11 @@ class Judge:
         self.current_response_weight = None
         self.good_bound = 80              # Minimum weight for a good response
         self.bad_bound = 50               # Maximum weight for a bad response
-        #self.llm = LLMService()           # Openai LLM
 
-    def new_response(self, audio_file_path):
+    def new_response(self, question, audio_file_path):
         self.current_audio = audio_file_path
-        self.current_response = self.audio_to_text(audio_file_path)
         self.responses.append(self.current_response)
+        self.current_response = (question, self.audio_to_text(audio_file_path))
         self.num_responses += 1
 
 
@@ -113,14 +114,14 @@ class Judge:
     def analyze_legal_strength(self):
         """Use LegalBERT to evaluate the legal strength of a response."""
         print(self.current_response)
-        if self.current_response == "Unintelligible":
+        if self.current_response[1] == "Unintelligible":
             return 0
 
         tokenizer = BertTokenizer.from_pretrained("nlpaueb/legal-bert-base-uncased")
         model = BertForSequenceClassification.from_pretrained("nlpaueb/legal-bert-base-uncased")
 
         # Tokenize the response
-        inputs = tokenizer(self.current_response, return_tensors="pt")
+        inputs = tokenizer(self.current_response[1], return_tensors="pt")
         outputs = model(**inputs)
         
         # Get logits (output before softmax)
@@ -155,14 +156,16 @@ class Judge:
         
         # Get the sentence embeddings for the response and the evidence
         evidence_text = " ".join(evidence)  # Combine evidence into one string
-        response_embedding = self.get_sentence_embedding(self.current_response, model, tokenizer)
+        response_embedding = self.get_sentence_embedding(self.current_response[1], model, tokenizer)
+        question_embedding = self.get_sentence_embedding(self.current_response[0], model, tokenizer)
         evidence_embedding = self.get_sentence_embedding(evidence_text, model, tokenizer)
         
         # Compute cosine similarity between the response and evidence embeddings
-        cosine_sim = torch.nn.functional.cosine_similarity(response_embedding, evidence_embedding)
+        cosine_sim_e = torch.nn.functional.cosine_similarity(response_embedding, evidence_embedding)
+        cosine_sim_q = torch.nn.functional.cosine_similarity(response_embedding, question_embedding)
         
         # Convert similarity score to a percentage (0 to 100)
-        correctness_score = cosine_sim.item() * 100
+        correctness_score = np.mean([cosine_sim_e.item(), cosine_sim_q.item()]) * 100
         
         return correctness_score
     
@@ -188,143 +191,3 @@ def judge_deliberation(responses, evidence):
     """
     judge = Judge()
     return judge.evaluate_case(responses, evidence)
-
-
-responses = [
-                ("Next page, please. Next page, please. Yes, I am familiar with this document.", "1.mp3"),
-                ("I was the assistant director during that time.", "2.mp3"),
-                ("I intended to inform the public and parents and students in the school about what our pedagogy entailed.", "3.mp3"),
-                ("The sky is black.", "4.mp3"),
-                ("I have not taken money from the department.", "5.mp3")    
-            ]
-evidence = ["Took a grant several years ago for research.", "Worked as a research assistant before changing industry.", "Leaked sensitive documents."]
-print(judge_deliberation(responses, evidence))
-
-
-    # def analyze_correctness(self, response_text, evidence, current_question):
-    #     """Evaluate correctness based on evidence, consistency with previous responses, and relevance to the current question."""
-        
-    #     # Correctness based on evidence
-    #     correctness_score_evidence = self.evaluate_evidence_consistency(response_text, evidence)
-        
-    #     # Consistency with previous responses
-    #     consistency_score = self.evaluate_response_consistency(response_text)
-        
-    #     # Relevance to current question
-    #     relevance_score = self.evaluate_relevance(response_text, current_question)
-        
-    #     # Combine the three scores, with appropriate weighting
-    #     overall_correctness_score = (
-    #         (correctness_score_evidence * 0.4) + 
-    #         (consistency_score * 0.4) + 
-    #         (relevance_score * 0.2)
-    #     )
-        
-    #     # Store the current response for future consistency checks
-    #     self.previous_responses.append(response_text)
-        
-    #     return overall_correctness_score
-
-    # def normalize(claim):
-    #     """Normalize the claim by converting to lowercase and stripping whitespace."""
-    #     return claim.strip().lower()
-
-    # def extract_features(claim):
-    #     """Extract basic features such as keywords or phrases."""
-    #     # This function can be extended to extract more sophisticated features.
-    #     keywords = ['always', 'never', 'must', 'should', 'can', 'may', 'might', 'not']
-    #     extracted_keywords = [word for word in keywords if word in claim]
-    #     return extracted_keywords
-
-    # def get_embedding(claim):
-    #     """Get embedding for the claim from the LLM."""
-    #     response = openai.Embedding.create(
-    #         input=claim,
-    #         model="text-embedding-ada-002"  # Use the appropriate embedding model
-    #     )
-    #     return response['data'][0]['embedding']
-
-    # def query_llm(claim_a, claim_b):
-    #     """Query the LLM to check for contradictions."""
-    #     prompt = f"Do the following claims contradict each other? Claim A: '{claim_a}' Claim B: '{claim_b}'"
-    #     response = openai.ChatCompletion.create(
-    #         model="gpt-4",  # Use the appropriate model
-    #         messages=[{"role": "user", "content": prompt}]
-    #     )
-    #     return response.choices[0].message['content']
-
-    # def interpret_llm_response(response):
-    #     """Interpret the LLM response to determine a contradiction score."""
-    #     if "contradict" in response.lower():
-    #         return 0.9  # High contradiction
-    #     elif "compatible" in response.lower():
-    #         return 0.1  # Low contradiction
-    #     else:
-    #         return 0.5  # Ambiguous case
-
-    # def check_contradiction(claim_a, claim_b):
-    #     """Main function to check if two claims contradict each other."""
-    #     # Normalize claims
-    #     claim_a_normalized = normalize(claim_a)
-    #     claim_b_normalized = normalize(claim_b)
-
-    #     # Get embeddings (optional, can be used for additional checks)
-    #     embedding_a = get_embedding(claim_a_normalized)
-    #     embedding_b = get_embedding(claim_b_normalized)
-
-    #     # Query LLM for contradiction analysis
-    #     llm_response = query_llm(claim_a_normalized, claim_b_normalized)
-
-    #     # Interpret the LLM response
-    #     contradiction_score = interpret_llm_response(llm_response)
-
-    #     return {
-    #         "contradicts": contradiction_score >= 0.8,
-    #         "compatible": contradiction_score <= 0.2,
-    #         "score": contradiction_score,
-    #         "explanation": llm_response
-    #     }
-    
-
-    # def evaluate_relevance(self, response_text, current_question):
-    #     """Evaluate the relevance of the response to the current question."""
-    #     # Check semantic similarity to the current question
-    #     question_doc = self.nlp(current_question)
-    #     response_doc = self.nlp(response_text)
-
-    #     # Calculate semantic similarity
-    #     similarity = question_doc.similarity(response_doc)
-
-    #     # Convert to a score (0 to 100)
-    #     relevance_score = similarity * 100
-        
-    #     return relevance_score
-    
-    # def generate_personalized_feedback(self, response_text, tone_confidence, legal_strength, correctness, context):
-    #     """Generate personalized feedback using an LLM based on the trial point context."""
-    #     # Example prompts tailored to different stages of the trial (opening statement, cross-examination, etc.)
-    #     prompt = f"""
-    #     You are a legal expert evaluating a mock trial performance. The specific context is '{context}'.
-    #     The tone and confidence score is {tone_confidence}, the legal strength score is {legal_strength}, 
-    #     and the correctness based on evidence is {correctness}.
-    #     The performance was: "{response_text}".
-        
-    #     Provide detailed, constructive feedback specific to this context (e.g., cross-examination, opening statement), 
-    #     highlighting strengths and areas for improvement.
-    #     """
-        
-    #     # Placeholder for calling the LLM (e.g., OpenAI's GPT-4)
-    #     response = self.call_llm(prompt)
-        
-    #     return response
-    
-
-    # def call_llm(self, prompt):
-    #     """Call the LLM (e.g., GPT-4) to generate feedback based on the prompt."""
-    #     # Replace with actual LLM API call
-    #     # Example using OpenAI's ChatCompletion API:
-    #     response = ChatCompletion.create(
-    #         model="gpt-4",
-    #         messages=[{"role": "user", "content": prompt}]
-    #     )
-    #     return response['choices'][0]['message']['content']

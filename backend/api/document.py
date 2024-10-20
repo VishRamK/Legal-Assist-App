@@ -1,9 +1,12 @@
 import openai
 import PyPDF2
 import os
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # OpenAI API setup (replace with your API key)
-openai.api_key = 'sk-proj-OWK5pyZahlATWnG4TX25T3BlbkFJnKXDAARC550AF1KqdkRz'
+openai.api_key = os.getenv("OPEN_AI_KEY")
 
 def get_case_brief_facts(transcript):
     prompt = f"""
@@ -11,7 +14,6 @@ def get_case_brief_facts(transcript):
     
     1. Facts of the case
     2. Issues
-    
     3. Reasoning
    
     This will be read by the judge as the proceedings start.keep the numbers like timeline and cost in the output.
@@ -19,7 +21,7 @@ def get_case_brief_facts(transcript):
     {transcript}
     """
 
-    response = openai.ChatCompletion.create(
+    response = openai.chat.completions.create(
         model="gpt-4",
         messages=[
             {"role": "system", "content": "You are a helpful assistant."},
@@ -27,7 +29,7 @@ def get_case_brief_facts(transcript):
         ]
     )
 
-    case_brief = response['choices'][0]['message']['content']
+    case_brief = response.choices[0].message.content
     return case_brief
 
 def process_file_for_case_brief(file_path, file_type):
@@ -45,14 +47,15 @@ def process_file_for_case_brief(file_path, file_type):
         raise ValueError("Unsupported file type. Please use pdf, docx, or txt files.")
     
     # Get case brief from the transcript using OpenAI API
-    case_brief = get_case_brief_facts(transcript_text)
+    evidence = get_case_brief_facts(transcript_text)
+    print("Evidence Extracted...")
+    case_brief = evidence
     
     # Print or return the case brief
-    print("Case Brief Extracted:")
-    print(case_brief)
+    print("Case Brief Extracted...")
+    return case_brief, evidence
 
 # Example usage
-file_path_pdf = "backend/api/Documents/Case1_brief.pdf"
+#file_path_pdf = "backend/api/Documents/Case1_brief.pdf"
 
-process_file_for_case_brief(file_path_pdf, "pdf")
-
+#print(process_file_for_case_brief(file_path_pdf, "pdf"))
