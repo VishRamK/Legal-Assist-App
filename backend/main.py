@@ -7,7 +7,7 @@ from mock_trial_interface import run_trial_workflow
 from api.document import process_file_for_case_brief
 
 class ChatbotApp:
-    def __init__(self, root, bot_name, row, col, msgQ):
+    def __init__(self, root: tk.Tk, bot_name: str, row: int, col: int, msgQ: queue.Queue):
         self.bot_name = bot_name
         self.frame = tk.Frame(root, padx=10, pady=10)
         self.frame.grid(row=row, column=col, sticky="nsew", padx=5, pady=5)
@@ -30,13 +30,11 @@ class ChatbotApp:
     def send_message(self, message):
         if message:
             self.chat_display.insert(tk.END, f"User: {message}\n")
-            # Call the handler to process the input and display the responses
-            self.display_bot_response(message)
-
+            self.chat_display.yview(tk.END)  # Scroll to the end
 
     def display_bot_response(self, response):
         self.chat_display.insert(tk.END, f"{self.bot_name}: {response}\n")
-
+        self.chat_display.yview(tk.END)  # Scroll to the end
 
     def run_trial(self, message):
         # Here you need to get your background and evidence
@@ -45,19 +43,13 @@ class ChatbotApp:
         # Start the workflow and pass the list of message queues
         run_trial_workflow(background, evidence, "defendant", [chatbot1.message_queue, chatbot2.message_queue, chatbot3.message_queue])
 
-
     def start_workflow(self):
-        message = self.input_field.get()  # Get the message from input field
-        self.send_message(message)
+        message = self.input_field.get()  # Get the message from the input field
+        self.send_message(message)  # Send the user's message to the chat display
         self.input_field.delete(0, tk.END)
 
         # Start the trial workflow in a separate thread
         threading.Thread(target=self.run_trial, args=(message,)).start()
-
-
-    def display_bot_response(self, response):
-        # Display the bot's response in the chat display
-        self.chat_display.insert(tk.END, f"{self.bot_name}: {response}\n")
 
 
     def check_queue(self):
@@ -65,12 +57,7 @@ class ChatbotApp:
             while True:
                 # Get the message from the queue
                 message = self.message_queue.get_nowait()
-
-                # Check if the input field is full
-                if self.input_field.get():
-                    pass
-                else:
-                    self.input_field.insert(0, message[0])  # Insert the new message
+                self.display_bot_response(message)  # Display bot's response
         except queue.Empty:
             pass
 

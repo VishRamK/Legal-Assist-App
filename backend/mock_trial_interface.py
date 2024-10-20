@@ -201,7 +201,7 @@ def run_trial_workflow(evidence: str, background: str, user: str, message_queues
         message_queues[1].put(f"{user}'s response: {user_response}")
 
         # Step 6: The Judge gives feedback
-        judge_feedback = judge_tool(judge)
+        judge_feedback = judge_tool(judge, user_response)
         message_queues[2].put(f"As your judge, here is my feedback:\n{judge_feedback}")
         text_to_speech(judge_feedback)
         
