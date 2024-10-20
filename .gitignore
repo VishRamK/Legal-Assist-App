@@ -1,1 +1,5 @@
 .env
+.DS_Store
+backend/.DS_Store
+backend/api/.DS_Store
+tests/.DS_Store

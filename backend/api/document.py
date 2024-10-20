@@ -1,57 +1,58 @@
+import openai
+import PyPDF2
 import os
-from flask import request  # For Flask; use appropriate imports for FastAPI
-from werkzeug.utils import secure_filename
-from PyPDF2 import PdfReader  # Example for reading PDF files
-import docx  # Library for handling .docx files
-from config import Config
 
-# Ensure the upload folder exists
-if not os.path.exists(Config.UPLOAD_FOLDER):
-    os.makedirs(Config.UPLOAD_FOLDER)
+# OpenAI API setup (replace with your API key)
+openai.api_key = 'sk-proj-OWK5pyZahlATWnG4TX25T3BlbkFJnKXDAARC550AF1KqdkRz'
 
-def allowed_file(filename):
-    """Check if the uploaded file is allowed based on its extension."""
-    return '.' in filename and \
-           filename.rsplit('.', 1)[1].lower() in Config.ALLOWED_EXTENSIONS
-
-def upload_document(file):
-    """Handle document upload and processing."""
-    if not file or file.filename == '':
-        raise ValueError("No file part or no file selected.")
+def get_case_brief_facts(transcript):
+    prompt = f"""
+    Extract a very concise case brief from the following case brief . In one paragraph,the case brief should include:
     
-    if allowed_file(file.filename):
-        filename = secure_filename(file.filename)
-        file_path = os.path.join(Config.UPLOAD_FOLDER, filename)
-        file.save(file_path)  # Save the file to the specified upload folder
+    1. Facts of the case
+    2. Issues
+    
+    3. Reasoning
+   
+    This will be read by the judge as the proceedings start.keep the numbers like timeline and cost in the output.
+    Transcript:
+    {transcript}
+    """
 
-        # Process the file (extract text)
-        content = extract_text_from_file(file_path, filename)
-        return content
+    response = openai.ChatCompletion.create(
+        model="gpt-4",
+        messages=[
+            {"role": "system", "content": "You are a helpful assistant."},
+            {"role": "user", "content": prompt}
+        ]
+    )
+
+    case_brief = response['choices'][0]['message']['content']
+    return case_brief
+
+def process_file_for_case_brief(file_path, file_type):
+    transcript_text = ""
+    
+    if file_type == "pdf":
+        with open(file_path, "rb") as file:
+            reader = PyPDF2.PdfReader(file)
+            for page in reader.pages:
+                transcript_text += page.extract_text()
+    elif file_type == "txt":
+        with open(file_path, "r") as file:
+            transcript_text = file.read()
     else:
-        raise ValueError("File type not allowed. Please upload a PDF or DOCX file.")
+        raise ValueError("Unsupported file type. Please use pdf, docx, or txt files.")
+    
+    # Get case brief from the transcript using OpenAI API
+    case_brief = get_case_brief_facts(transcript_text)
+    
+    # Print or return the case brief
+    print("Case Brief Extracted:")
+    print(case_brief)
 
-def extract_text_from_file(file_path, filename):
-    """Extract text from the uploaded file based on its type."""
-    if filename.endswith('.pdf'):
-        return extract_text_from_pdf(file_path)
-    elif filename.endswith('.docx'):
-        return extract_text_from_docx(file_path)
-    else:
-        raise ValueError("Unsupported file type for text extraction.")
+# Example usage
+file_path_pdf = "backend/api/Documents/Case1_brief.pdf"
 
-def extract_text_from_pdf(file_path):
-    """Extract text from a PDF file."""
-    text = ""
-    with open(file_path, 'rb') as file:
-        reader = PdfReader(file)
-        for page in reader.pages:
-            text += page.extract_text() or ''  # Handle case where text might be None
-    return text
+process_file_for_case_brief(file_path_pdf, "pdf")
 
-def extract_text_from_docx(file_path):
-    """Extract text from a DOCX file."""
-    text = ""
-    doc = docx.Document(file_path)
-    for paragraph in doc.paragraphs:
-        text += paragraph.text + "\n"
-    return text
