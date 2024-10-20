@@ -1,11 +1,13 @@
 # services/llm_service.py
 
 import openai  # Assuming you're using OpenAI's API
+import os
 
 class LLMService:
-    def __init__(self, api_key):
+    def __init__(self):
         """Initialize the LLM service with the API key."""
-        openai.api_key = api_key  # Set your API key here
+        openai.api_key = os.getenv("OPENAI_API_KEY")  # or set directly as 'your-api-key'
+
 
     def generate_strategy(self, case_details):
         """Generate a legal strategy based on case details."""

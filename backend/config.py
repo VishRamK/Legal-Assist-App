@@ -2,13 +2,14 @@ import os
 
 class Config:
     # Flask or FastAPI secret key for session management and CSRF protection
-    SECRET_KEY = os.environ.get('SECRET_KEY', 'your_default_secret_key')
+    LANGCHAIN_API_KEY = os.environ.get('LANGCHAIN_API_KEY')
 
     # Database configuration (if you're using a database)
     DATABASE_URI = os.environ.get('DATABASE_URI', 'sqlite:///your_database.db')
 
     # API keys for external services (like LLM API)
-    LLM_API_KEY = os.environ.get('LLM_API_KEY', 'your_llm_api_key')
+    TAVILY_API_KEY = os.environ.get('TAVILY_API_KEY')
+    ANTHROPIC_API_KEY = os.environ.get('ANTHROPIC_API_KEY')
 
     # Other application settings
     DEBUG = os.environ.get('DEBUG', 'False') == 'True'  # Convert string to boolean

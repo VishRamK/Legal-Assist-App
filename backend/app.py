@@ -16,9 +16,10 @@ app.config.from_object(Config)
 init_models()
 init_services()
 document_service = DocumentService()
-llm_service = LLMService(api_key='YOUR_API_KEY')  # Replace with your actual API key
+llm_service = LLMService(Config.TAVILY_API_KEY)  # Replace with your actual API key
 
 # Define your API endpoints
+
 
 @app.route('/')
 def index():
