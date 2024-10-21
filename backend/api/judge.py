@@ -32,7 +32,8 @@ class Judge:
 
     def new_response(self, question, audio_file_path):
         self.current_audio = audio_file_path
-        self.responses.append(self.current_response)
+        if self.current_response:
+            self.responses.append(self.current_response)
         self.current_response = (question, self.audio_to_text(audio_file_path))
         self.num_responses += 1
 
@@ -109,6 +110,7 @@ class Judge:
         # Ensure confidence score is between 0 and 1
         confidence_score = max(0, min(confidence_score, 1))
 
+        print(confidence_score)
         return confidence_score
 
     def analyze_legal_strength(self):
@@ -132,7 +134,7 @@ class Judge:
         
         # Use the probability of the predicted class (highest probability)
         legal_strength_score = torch.max(probabilities).item() * 100  # Scale to 0-100
-
+        print(legal_strength_score)
         return legal_strength_score
 
 
@@ -166,7 +168,7 @@ class Judge:
         
         # Convert similarity score to a percentage (0 to 100)
         correctness_score = np.mean([cosine_sim_e.item(), cosine_sim_q.item()]) * 100
-        
+        print(correctness_score)
         return correctness_score
     
 

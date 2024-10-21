@@ -1,6 +1,5 @@
 import tkinter as tk
 from tkinter import scrolledtext
-import importlib.util
 import threading
 import queue
 from mock_trial_interface import run_trial_workflow
@@ -41,7 +40,7 @@ class ChatbotApp:
         background, evidence = process_file_for_case_brief("backend/api/Documents/Case1_brief.pdf", "pdf")
         
         # Start the workflow and pass the list of message queues
-        run_trial_workflow(background, evidence, "defendant", [chatbot1.message_queue, chatbot2.message_queue, chatbot3.message_queue])
+        run_trial_workflow(background, evidence, "Defendant", [chatbot1.message_queue, chatbot2.message_queue, chatbot3.message_queue])
 
     def start_workflow(self):
         message = self.input_field.get()  # Get the message from the input field
@@ -85,9 +84,9 @@ def create_chatbots():
     chatbot2_queue = queue.Queue()
     chatbot3_queue = queue.Queue()
 
-    chatbot1 = ChatbotApp(root, "Chatbot 1", 0, 0, chatbot1_queue)
-    chatbot2 = ChatbotApp(root, "Chatbot 2", 0, 1, chatbot2_queue)
-    chatbot3 = ChatbotApp(root, "Chatbot 3", 0, 2, chatbot3_queue)
+    chatbot1 = ChatbotApp(root, "AI Legal Assistant", 0, 0, chatbot1_queue)
+    chatbot2 = ChatbotApp(root, "Opposition", 0, 1, chatbot2_queue)
+    chatbot3 = ChatbotApp(root, "Judge", 0, 2, chatbot3_queue)
 
     root.mainloop()
 

@@ -13,6 +13,9 @@ import pyttsx3
 import keyboard
 from api.document import process_file_for_case_brief
 import queue
+import threading
+import soundfile as sf
+
 
 # Audio settings
 FORMAT = pyaudio.paInt16
@@ -20,6 +23,26 @@ CHANNELS = 1
 RATE = 16000
 CHUNK = 1024
 THRESHOLD = 0.01  # The threshold for detecting sound, can be tuned based on sensitivity
+
+# Initialize the TTS engine
+engine = pyttsx3.init()
+
+# Create a queue for messages
+tts_queue = queue.Queue()
+
+def tts_worker():
+    """Thread worker function for text-to-speech."""
+    while True:
+        text = tts_queue.get()
+        if text is None:  # Exit signal
+            break
+        engine.say(text)
+        engine.runAndWait()
+        tts_queue.task_done()
+
+# Start the TTS worker thread
+tts_thread = threading.Thread(target=tts_worker)
+tts_thread.start()
 
 load_dotenv()
 # Set up API clients for Tavily and Anthropic
@@ -69,15 +92,18 @@ def record_audio(filename: str) -> None:
 
 def text_to_speech(text: str):
     """Convert the given text to speech."""
-    engine = pyttsx3.init()
-    engine.say(text)
-    engine.runAndWait()
+    if not text:
+        print("No text provided for speech.")
+        return
+    
+    # Put text into the queue for the TTS worker
+    tts_queue.put(text)
 
 
 def question_generator(background: str, user: str):
     prompt = (
         f"The following is the background of a civil court case: \n {background}. \n"
-        f"Knowing this, give me a list of ten questions you would ask the {user} as the opposing lawyer."
+        f"Knowing this, give me a list of 3 different questions you would ask the {user} as the opposing lawyer."
         "The questions must all be single sentences (no periods in between) ending with a question mark"
     )
     questions_to_parse = llm.invoke(prompt)
@@ -128,17 +154,21 @@ def prosecutor_tool(user_response: str) -> str:
     return llm.invoke(prompt)
 
 # Define Judge Agent (using LangChain's built-in LLM)
-def judge_tool(judge: Judge, response: str) -> str:
+def judge_tool(judge: Judge, evidence) -> str:
     """Judge evaluates the user’s responses."""
     prompt = None
+    response = judge.current_response
     w = judge.current_response_weight
-    results = "".join(f"Question: {res[0]}; Answer: {res[1]}\n" for res in judge.responses)
+    results = "\n"
+    if judge.responses:
+        
+        results = "And their previous questions and responses:\n" + "".join(f"Question: {q}; Answer: {a}\n" for q, a in judge.responses) + "\n"
     if w < 60:
         prompt = (
             f"You are a judge evaluating the user's performance during a trial. Analyze their response based on:"
             "1) Tone (confidence, hesitation)"
             "2) Legal soundness (how well the responses align with legal principles)"
-            f"3) Consistency compared with: \n {evidence} \n And their previous questions and responses:\n{results}"
+            f"3) Consistency compared with: \n {evidence}\n{results}"
             "Provide feedback on how the user can improve."
             f"Here is the user’s response to the question {response[0]}: {response[1]}"
         )
@@ -174,40 +204,42 @@ def judge_tool(judge: Judge, response: str) -> str:
 # Function to run the multi-agent trial workflow
 def run_trial_workflow(evidence: str, background: str, user: str, message_queues: list[queue.Queue]):   
     questions = question_generator(background, user)    
-    print(questions)
     nxt = 0
     current_question = questions[nxt]
 
     judge = Judge()
     while True:
         # Step 1: Ask the current question via audio
-        message_queues[1].put(f"Current question: {current_question}")
+        message_queues[1].put(f"Current question: {current_question}\n\n")
         text_to_speech(current_question)
 
         # Step 2: Legal Advisor gives advice
         legal_advice = legal_advisor_tool(question=current_question, evidence=evidence, background=background)
-        message_queues[0].put(f"As your AI legal assistant, here is my advice:\n{legal_advice}")
+        message_queues[0].put(f"As your AI legal assistant, here is my advice:\n{legal_advice}\n\n")
         text_to_speech(legal_advice)
 
         # Step 3: Record audio response from the user
         audio_filename = "user_response.wav"
         record_audio(audio_filename)  # Record
+        data, fs = sf.read("user_response.wav")
+
+        # Play the audio
+        sd.play(data, fs)
         
         # Step 4: Analyze tone of the audio
         judge.new_response(current_question, audio_filename)
         
         # Step 5: Convert audio to text
         user_response = judge.current_response[1]
-        message_queues[1].put(f"{user}'s response: {user_response}")
-
+        message_queues[1].put(f"{user}'s response: {user_response}\n\n")
+        judge.evaluate_response(evidence)
         # Step 6: The Judge gives feedback
-        judge_feedback = judge_tool(judge, user_response)
-        message_queues[2].put(f"As your judge, here is my feedback:\n{judge_feedback}")
+        judge_feedback = judge_tool(judge, evidence)
+        message_queues[2].put(f"As your judge, here is my feedback:\n{judge_feedback}\n\n")
         text_to_speech(judge_feedback)
         
         # Step 7: Prosecutor evaluates response and asks a follow-up question
-        judge.evaluate_response(evidence)
-        message_queues[2].put(f"After careful evaluation, I have given your response a score of {judge.current_response_weight} out of 100.")
+        message_queues[2].put(f"After careful evaluation, I have given your response a score of {judge.current_response_weight} out of 100.\n\n")
         follow_up_question = prosecutor_tool(user_response=user_response) if judge.current_response_weight < 60 else None
         if not follow_up_question:
             if nxt >= len(questions):
