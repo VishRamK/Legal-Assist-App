@@ -54,8 +54,3 @@ def process_file_for_case_brief(file_path, file_type):
     # Print or return the case brief
     print("Case Brief Extracted...")
     return case_brief, evidence
-
-# Example usage
-#file_path_pdf = "backend/api/Documents/Case1_brief.pdf"
-
-#print(process_file_for_case_brief(file_path_pdf, "pdf"))

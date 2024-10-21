@@ -2,7 +2,6 @@ import sounddevice as sd
 import numpy as np
 import wave
 from langchain_openai import OpenAI
-# from langchain.agents import Tool, initialize_agent
 from tavily import TavilyClient
 from api.judge import Judge
 import os
@@ -11,7 +10,7 @@ import pyaudio
 import time
 import pyttsx3
 import keyboard
-from api.document import process_file_for_case_brief
+# from api.document import process_file_for_case_brief
 import queue
 import threading
 import soundfile as sf
@@ -221,18 +220,15 @@ def run_trial_workflow(evidence: str, background: str, user: str, message_queues
         # Step 3: Record audio response from the user
         audio_filename = "user_response.wav"
         record_audio(audio_filename)  # Record
-        data, fs = sf.read("user_response.wav")
-
-        # Play the audio
-        sd.play(data, fs)
         
         # Step 4: Analyze tone of the audio
         judge.new_response(current_question, audio_filename)
+        judge.evaluate_response(evidence)
         
         # Step 5: Convert audio to text
         user_response = judge.current_response[1]
         message_queues[1].put(f"{user}'s response: {user_response}\n\n")
-        judge.evaluate_response(evidence)
+        
         # Step 6: The Judge gives feedback
         judge_feedback = judge_tool(judge, evidence)
         message_queues[2].put(f"As your judge, here is my feedback:\n{judge_feedback}\n\n")
@@ -253,6 +249,3 @@ def run_trial_workflow(evidence: str, background: str, user: str, message_queues
     message_queues[2].put(f"Your overall performance in this trial gives you a {win_prob}% chance of winning this case.")
 
 # Start Trial
-# background, evidence = process_file_for_case_brief("backend/api/Documents/Case1_brief.pdf", "pdf")
-# msgQ = queue.Queue()
-# run_trial_workflow(background, evidence, "defendant", msgQ)

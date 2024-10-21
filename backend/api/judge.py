@@ -1,8 +1,7 @@
-from transformers import BertTokenizer, BertForSequenceClassification, Trainer, TrainingArguments, BertModel
+from transformers import BertTokenizer, BertForSequenceClassification, BertModel
 import torch
 import librosa
 import numpy as np
-from datasets import load_dataset
 import os
 from dotenv import load_dotenv
 import assemblyai as aai
@@ -10,9 +9,6 @@ import assemblyai as aai
 load_dotenv()
 aai.settings.api_key = os.getenv("ASSEMBLY_AI_KEY")
 transcriber = aai.Transcriber()
-
-# Path to your fine-tuned model
-finetuned_model_path = './finetuned_legal_bert'
 
 model = BertForSequenceClassification.from_pretrained("nlpaueb/legal-bert-base-uncased")
 
